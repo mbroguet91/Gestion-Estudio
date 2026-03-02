@@ -249,7 +249,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
     <!-- HONORS -->
     <div class="sec" id="sec-honors">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px"><button class="btn btn-p" onclick="openNH()">+ Nuevo Cobro</button></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div id="h-pending-notice" style="display:none;background:rgba(224,85,85,.08);border:1px solid rgba(224,85,85,.25);border-radius:8px;padding:10px 14px;font-size:12.5px;color:var(--text2)">
+          <span style="color:var(--red);font-weight:600">⚠ Honorarios pendientes de cobro:</span> <span id="h-pending-amount" style="font-family:'Playfair Display',serif;color:var(--red)"></span>
+        </div>
+        <div style="margin-left:auto"><button class="btn btn-p" onclick="openNH()">+ Nuevo Cobro</button></div>
+      </div>
       <div class="card"><table class="ht"><thead><tr><th>Cliente / Causa</th><th>Concepto</th><th>Monto</th><th>Fecha</th><th>Estado</th></tr></thead><tbody id="h-tbody"></tbody></table></div>
     </div>
 
@@ -878,28 +883,19 @@ function DR(id){records=records.filter(r=>r.id!==id);sbDeleteRecord(id);save();R
 function openNH(){document.getElementById('fhco').value='';document.getElementById('fhm').value='';document.getElementById('fhf').value=new Date().toISOString().split('T')[0];document.getElementById('fhe').value='pending';document.getElementById('fhc').innerHTML='<option value="">Sin causa</option>'+causas.map(c=>`<option value="${c.id}">${esc(c.caratula)}</option>`).join('');OM('m-h');}
 function ONHC(cid){openNH();document.getElementById('fhc').value=cid;}
 function SH(){const co=document.getElementById('fhco').value.trim(),mo=document.getElementById('fhm').value;if(!co||!mo){nt('Concepto y monto requeridos','err');return;}const hon={id:uid(),causaId:document.getElementById('fhc').value||null,concepto:co,monto:mo,fecha:document.getElementById('fhf').value,estado:document.getElementById('fhe').value};honors.push(hon);sbSaveHonor(hon);save();CM('m-h');RH();nt('Honorario registrado');}
-function RH(){const el=document.getElementById('h-tbody');if(!honors.length){el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:26px;color:var(--text3)">Sin registros</td></tr>';return;}el.innerHTML=honors.map(h=>{const c=h.causaId?causas.find(x=>x.id===h.causaId):null;return`<tr><td>${c?esc(c.caratula):'—'}</td><td>${esc(h.concepto)}</td><td>$${parseFloat(h.monto||0).toLocaleString('es-AR')}</td><td>${fd(h.fecha)}</td><td class="${h.estado}">${{paid:'Cobrado',pending:'Pendiente',overdue:'Vencido'}[h.estado]||h.estado}</td></tr>`;}).join('');}
+function RH(){
+  const el=document.getElementById('h-tbody');
+  if(!honors.length){el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:26px;color:var(--text3)">Sin registros</td></tr>';return;}
+  el.innerHTML=honors.map(h=>{const c=h.causaId?causas.find(x=>x.id===h.causaId):null;return`<tr><td>${c?esc(c.caratula):'—'}</td><td>${esc(h.concepto)}</td><td>$${parseFloat(h.monto||0).toLocaleString('es-AR')}</td><td>${fd(h.fecha)}</td><td class="${h.estado}">${{paid:'Cobrado',pending:'Pendiente',overdue:'Vencido'}[h.estado]||h.estado}</td></tr>`;}).join('');
+  const pending=honors.filter(h=>h.estado==='pending'||h.estado==='overdue').reduce((a,b)=>a+parseFloat(b.monto||0),0);
+  const notice=document.getElementById('h-pending-notice');
+  const amount=document.getElementById('h-pending-amount');
+  if(notice&&amount){if(pending>0){notice.style.display='flex';amount.textContent='$'+pending.toLocaleString('es-AR');}else{notice.style.display='none';}}
+}
 
 // ══ MODALS ══
 function OM(id){document.getElementById(id).classList.add('open');}
 function CM(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
 function MCT(el,id){el.closest('.mbody').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');MCTB(id);}
-function MCTB(id){['mcd','mcc','mcp'].forEach(x=>{const el=document.getElementById(x);if(el)el.style.display=x===id?'':'none';});document.getElementById(id).style.display='';}
-
-// ══ SEED REYNOSO ══
-function seedReynoso(){
-  if(causas.find(c=>c.caratula.toLowerCase().includes('reynoso')))return;
-  causas.push({id:uid(),rama:'laboral',tipo:'Laboral ordinario',caratula:'Reynoso Juan c/ Empresa SA s/ Despido Injustificado',exp:'',juzgado:'',sec:'',etapa:'Inicial',finicio:new Date().toISOString().split('T')[0],obs:'Causa de prueba — completar con datos reales del expediente y adjuntar fuentes.',cliente:{nombre:'Reynoso, Juan',dni:'',tel:'',email:'',domicilio:'',rol:'Actor / Demandante'},proxActu:'',proxFecha:'',antec:'',actuaciones:[],adjuntos:[],notas:[],createdAt:new Date().toISOString()});
-  save();
-}
-
-// ══ INIT ══
-function init(){
-  document.getElementById('fdate').textContent=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'});
-  seedReynoso();RD();
-}
-init();
-</script>
-</body>
-</html>
+function MCTB(id){['mcd','mcc','mcp'].forEach(x=>{const el=document.getElementById(x);if(el)el.style.display=x===id?'':'none';});document.getElem
