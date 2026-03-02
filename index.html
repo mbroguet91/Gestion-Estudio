@@ -152,6 +152,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .sov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99;}
 .sov.open{display:block;}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="sov" id="sov" onclick="toggleSB()"></div>
@@ -351,7 +352,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <div class="notif" id="notif"></div>
 
 <script>
-// ══ STORAGE ══
+// ══ SUPABASE ══
+const SUPA_URL = 'https://bbjrlfeadckvueimzith.supabase.co';
+const SUPA_KEY = 'sb_publishable_0MlGCWBoXNkby9v7rP_hEQ_X6BZb_Fx';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+// ══ STORAGE (compatibilidad local mientras carga) ══
 const DB={get:(k)=>{try{return JSON.parse(localStorage.getItem(k)||'null');}catch{return null;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
 
 // ══ STATE ══
@@ -364,6 +370,32 @@ let curId=null,editId=null,editAId=null;
 
 // ══ UTILS ══
 function save(){DB.set('ej3_causas',causas);DB.set('ej3_recs',records);DB.set('ej3_honors',honors);DB.set('ej3_biblio',biblio);DB.set('ej3_chats',chats);}
+
+// ══ SUPABASE SYNC ══
+async function sbSaveCausa(c){try{await sb.from('causas').upsert({id:c.id,data:c});}catch(e){console.error('Error guardando causa:',e);}}
+async function sbDeleteCausa(id){try{await sb.from('causas').delete().eq('id',id);}catch(e){console.error(e);}}
+async function sbSaveRecord(r){try{await sb.from('recordatorios').upsert({id:r.id,data:r});}catch(e){console.error(e);}}
+async function sbDeleteRecord(id){try{await sb.from('recordatorios').delete().eq('id',id);}catch(e){console.error(e);}}
+async function sbSaveHonor(h){try{await sb.from('honorarios').upsert({id:h.id,data:h});}catch(e){console.error(e);}}
+async function sbDeleteHonor(id){try{await sb.from('honorarios').delete().eq('id',id);}catch(e){console.error(e);}}
+async function sbSaveChat(cid){try{await sb.from('chats').upsert({causa_id:cid,mensajes:chats[cid]||[]});}catch(e){console.error(e);}}
+
+async function loadFromSupabase(){
+  try{
+    const [c,r,h,ch]=await Promise.all([
+      sb.from('causas').select('*'),
+      sb.from('recordatorios').select('*'),
+      sb.from('honorarios').select('*'),
+      sb.from('chats').select('*')
+    ]);
+    if(c.data&&c.data.length>0){causas=c.data.map(x=>x.data);DB.set('ej3_causas',causas);}
+    if(r.data&&r.data.length>0){records=r.data.map(x=>x.data);DB.set('ej3_recs',records);}
+    if(h.data&&h.data.length>0){honors=h.data.map(x=>x.data);DB.set('ej3_honors',honors);}
+    if(ch.data&&ch.data.length>0){ch.data.forEach(x=>{chats[x.causa_id]=x.mensajes;});DB.set('ej3_chats',chats);}
+    render();
+    console.log('Datos cargados desde Supabase');
+  }catch(e){console.error('Error cargando desde Supabase:',e);}
+}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
 function fd(d){if(!d)return'—';const[y,m,d2]=d.split('-');return`${d2}/${m}/${y}`;}
 function du(ds){if(!ds)return null;const t=new Date();t.setHours(0,0,0,0);return Math.round((new Date(ds)-t)/86400000);}
@@ -374,6 +406,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 
 // ══ LOCAL DETECTION ══
 if(window.location.protocol==='file:')document.getElementById('dban').style.display='flex';
+if(window.location.protocol!=='file:')loadFromSupabase();
 
 // ══ NAV ══
 function nav(name){
@@ -727,7 +760,7 @@ async function SM(cid){
     if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||'HTTP '+res.status);}
     const data=await res.json();
     const reply=data.content?.map(b=>b.text||'').join('')||'Sin respuesta del servidor.';
-    RT(cid);chats[cid].push({role:'assistant',content:reply});save();ACM(cid,'ast',reply);
+    RT(cid);chats[cid].push({role:'assistant',content:reply});save();sbSaveChat(cid);ACM(cid,'ast',reply);
   }catch(e){
     RT(cid);
     const msg=window.location.protocol==='file:'
@@ -825,10 +858,10 @@ function SC(){
   const car=document.getElementById('fcar').value.trim();if(!car){nt('La carátula es obligatoria','err');return;}
   const d={rama:document.getElementById('fr').value,tipo:document.getElementById('ft').value,caratula:car,exp:document.getElementById('fexp').value.trim(),juzgado:document.getElementById('fjuz').value.trim(),sec:document.getElementById('fsec').value.trim(),etapa:document.getElementById('fet').value,finicio:document.getElementById('ffi').value,obs:document.getElementById('fobs').value.trim(),cliente:{nombre:document.getElementById('fcn').value.trim(),dni:document.getElementById('fcd').value.trim(),tel:document.getElementById('fct').value.trim(),email:document.getElementById('fce').value.trim(),domicilio:document.getElementById('fcdom').value.trim(),rol:document.getElementById('fcr').value},proxActu:document.getElementById('fpx').value.trim(),proxFecha:document.getElementById('fpf').value,antec:document.getElementById('fant').value.trim()};
   if(editId){const i=causas.findIndex(c=>c.id===editId);if(i>=0)causas[i]={...causas[i],...d};nt('Causa actualizada');if(curId===editId){RendD(causas.find(x=>x.id===editId));}}
-  else{d.id=uid();d.actuaciones=[];d.adjuntos=[];d.notas=[];d.createdAt=new Date().toISOString();causas.push(d);nt('Causa creada');}
+  else{d.id=uid();d.actuaciones=[];d.adjuntos=[];d.notas=[];d.createdAt=new Date().toISOString();causas.push(d);sbSaveCausa(d);nt('Causa creada');}
   save();CM('m-c');RD();
 }
-function DC(id){if(!confirm('¿Eliminar esta causa?'))return;causas=causas.filter(c=>c.id!==id);delete chats[id];save();nav('causas');nt('Causa eliminada','inf');}
+function DC(id){if(!confirm('¿Eliminar esta causa?'))return;causas=causas.filter(c=>c.id!==id);sbDeleteCausa(id);delete chats[id];save();nav('causas');nt('Causa eliminada','inf');}
 
 // ══ ACTUACIONES ══
 function OA(cid){editAId=cid;document.getElementById('fad').value='';document.getElementById('faf').value=new Date().toISOString().split('T')[0];document.getElementById('fadet').value='';OM('m-a');}
@@ -836,15 +869,15 @@ function SA(){const d=document.getElementById('fad').value.trim();if(!d){nt('Des
 
 // ══ RECORDS ══
 function openNR(){document.getElementById('frt').value='';document.getElementById('frf').value='';document.getElementById('frn').value='';document.getElementById('frc').innerHTML='<option value="">Sin causa</option>'+causas.map(c=>`<option value="${c.id}">${esc(c.caratula)}</option>`).join('');OM('m-r');}
-function SR(){const t=document.getElementById('frt').value.trim(),f=document.getElementById('frf').value;if(!t||!f){nt('Título y fecha requeridos','err');return;}records.push({id:uid(),title:t,fecha:f,causaId:document.getElementById('frc').value||null,notas:document.getElementById('frn').value.trim(),done:false});save();CM('m-r');RR();RD();nt('Recordatorio guardado');}
+function SR(){const t=document.getElementById('frt').value.trim(),f=document.getElementById('frf').value;if(!t||!f){nt('Título y fecha requeridos','err');return;}const rec={id:uid(),title:t,fecha:f,causaId:document.getElementById('frc').value||null,notas:document.getElementById('frn').value.trim(),done:false};records.push(rec);sbSaveRecord(rec);save();CM('m-r');RR();RD();nt('Recordatorio guardado');}
 function RR(){const el=document.getElementById('r-list');if(!records.length){el.innerHTML='<div class="empty"><div class="eico">🔔</div><p>Sin recordatorios.</p></div>';return;}el.innerHTML=[...records].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha)).map(r=>{const d=r.fecha?du(r.fecha):null;const c=r.causaId?causas.find(x=>x.id===r.causaId):null;return`<div class="ri" style="${d!==null&&d<=3&&!r.done?'border-color:rgba(224,85,85,.3)':''}"><div class="rck ${r.done?'done':''}" onclick="TR('${r.id}')">${r.done?'✓':''}</div><div style="flex:1"><div style="font-size:12.5px;font-weight:500;${r.done?'text-decoration:line-through;opacity:.5':''}">${esc(r.title)}</div><div style="font-size:11px;color:var(--text3)">${c?esc(c.caratula):'Sin causa'}${r.notas?' · '+esc(r.notas):''}</div></div><div style="text-align:right"><div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)">${fd(r.fecha)}</div>${d!==null&&!r.done?`<div style="font-size:10px;color:${d<0?'var(--red)':d<=3?'var(--yellow)':'var(--text3)'}">${d<0?'Vencido':d===0?'HOY':'En '+d+'d'}</div>`:''}</div><button class="btn btn-d btn-sm" onclick="DR('${r.id}')">✕</button></div>`;}).join('');}
 function TR(id){const r=records.find(x=>x.id===id);if(r){r.done=!r.done;save();RR();RD();}}
-function DR(id){records=records.filter(r=>r.id!==id);save();RR();}
+function DR(id){records=records.filter(r=>r.id!==id);sbDeleteRecord(id);save();RR();}
 
 // ══ HONORS ══
 function openNH(){document.getElementById('fhco').value='';document.getElementById('fhm').value='';document.getElementById('fhf').value=new Date().toISOString().split('T')[0];document.getElementById('fhe').value='pending';document.getElementById('fhc').innerHTML='<option value="">Sin causa</option>'+causas.map(c=>`<option value="${c.id}">${esc(c.caratula)}</option>`).join('');OM('m-h');}
 function ONHC(cid){openNH();document.getElementById('fhc').value=cid;}
-function SH(){const co=document.getElementById('fhco').value.trim(),mo=document.getElementById('fhm').value;if(!co||!mo){nt('Concepto y monto requeridos','err');return;}honors.push({id:uid(),causaId:document.getElementById('fhc').value||null,concepto:co,monto:mo,fecha:document.getElementById('fhf').value,estado:document.getElementById('fhe').value});save();CM('m-h');RH();nt('Honorario registrado');}
+function SH(){const co=document.getElementById('fhco').value.trim(),mo=document.getElementById('fhm').value;if(!co||!mo){nt('Concepto y monto requeridos','err');return;}const hon={id:uid(),causaId:document.getElementById('fhc').value||null,concepto:co,monto:mo,fecha:document.getElementById('fhf').value,estado:document.getElementById('fhe').value};honors.push(hon);sbSaveHonor(hon);save();CM('m-h');RH();nt('Honorario registrado');}
 function RH(){const el=document.getElementById('h-tbody');if(!honors.length){el.innerHTML='<tr><td colspan="5" style="text-align:center;padding:26px;color:var(--text3)">Sin registros</td></tr>';return;}el.innerHTML=honors.map(h=>{const c=h.causaId?causas.find(x=>x.id===h.causaId):null;return`<tr><td>${c?esc(c.caratula):'—'}</td><td>${esc(h.concepto)}</td><td>$${parseFloat(h.monto||0).toLocaleString('es-AR')}</td><td>${fd(h.fecha)}</td><td class="${h.estado}">${{paid:'Cobrado',pending:'Pendiente',overdue:'Vencido'}[h.estado]||h.estado}</td></tr>`;}).join('');}
 
 // ══ MODALS ══
