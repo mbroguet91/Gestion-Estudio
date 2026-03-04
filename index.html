@@ -898,4 +898,21 @@ function OM(id){document.getElementById(id).classList.add('open');}
 function CM(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.mo').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');}));
 function MCT(el,id){el.closest('.mbody').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));el.classList.add('active');MCTB(id);}
-function MCTB(id){['mcd','mcc','mcp'].forEach(x=>{const el=document.getElementById(x);if(el)el.style.display=x===id?'':'none';});document.getElem
+function MCTB(id){['mcd','mcc','mcp'].forEach(x=>{const el=document.getElementById(x);if(el)el.style.display=x===id?'':'none';});document.getElementById(id).style.display='';}
+
+// ══ SEED REYNOSO ══
+function seedReynoso(){
+  if(causas.find(c=>c.caratula.toLowerCase().includes('reynoso')))return;
+  causas.push({id:uid(),rama:'laboral',tipo:'Laboral ordinario',caratula:'Reynoso Juan c/ Empresa SA s/ Despido Injustificado',exp:'',juzgado:'',sec:'',etapa:'Inicial',finicio:new Date().toISOString().split('T')[0],obs:'Causa de prueba — completar con datos reales del expediente y adjuntar fuentes.',cliente:{nombre:'Reynoso, Juan',dni:'',tel:'',email:'',domicilio:'',rol:'Actor / Demandante'},proxActu:'',proxFecha:'',antec:'',actuaciones:[],adjuntos:[],notas:[],createdAt:new Date().toISOString()});
+  save();
+}
+
+// ══ INIT ══
+function init(){
+  document.getElementById('fdate').textContent=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'});
+  seedReynoso();RD();
+}
+init();
+</script>
+</body>
+</html>
